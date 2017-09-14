@@ -8,23 +8,24 @@ exports._init = function(event, context) {
   return Alexa.handler(event, context);
 };
 
-exports._registerHandler = function(alexa, label, fn) {
+exports._registerSay = function(alexa, label, say) {
   var handler = {};
   handler[label] = function() {
-    this.emit(':tell', 'wtf!!!'); // this works
-    // fn(this) // this doesn't??
+    this.response.speak(say);
+    this.emit(':responseReady');
+  };
+  alexa.registerHandlers(handler);
+};
+
+exports._registerSayAndListen = function(alexa, label, say, listen) {
+  var handler = {};
+  handler[label] = function() {
+    this.response.speak(say).listen(listen);
+    this.emit(':responseReady');
   };
   alexa.registerHandlers(handler);
 };
 
 exports._execute = function(alexa) {
   alexa.execute();
-};
-
-exports._speak = function(self, say) {
-  self.emit(':tell', say);
-};
-
-exports._speakAndListen = function(self, say, listen) {
-  self.emit(':ask', say, listen);
 };
