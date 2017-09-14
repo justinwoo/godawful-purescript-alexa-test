@@ -1,14 +1,30 @@
 module Alexa
-  (ALEXA, Alexa, Event, Context, Handler, handler
+  ( ALEXA
+  , Alexa
+  , Event
+  , Context
+  , HandlerThis
+  , handler
   ) where
 
 import Prelude
 
 import Control.Monad.Eff (Eff, kind Effect)
-import Data.Function.Uncurried (Fn1, Fn2, Fn3, runFn1, runFn2, runFn3)
+import Control.Monad.Eff.Console (CONSOLE, log)
+import Control.Monad.Eff.Uncurried (EffFn1, EffFn2, EffFn3, runEffFn1, runEffFn2, runEffFn3)
 import Data.Newtype (class Newtype)
 
-type AlexaEffects eff = (alexa :: ALEXA | eff)
+type AlexaEffects eff = (alexa :: ALEXA, console :: CONSOLE | eff)
+
+-- | Type of effects performed by Alexa handlers, and associated types used
+-- | by the SDK.
+foreign import data ALEXA       :: Effect
+foreign import data Alexa       :: Type
+foreign import data Event       :: Type
+foreign import data Context     :: Type
+foreign import data HandlerThis :: Type
+
+-- | Newtype wrappers for common arguments
 
 newtype IntentLabel = IntentLabel String
 derive instance ntIntentLabel :: Newtype IntentLabel _
@@ -19,78 +35,101 @@ derive instance ntSay :: Newtype Say _
 newtype Listen = Listen String
 derive instance ntListen :: Newtype Listen _
 
-foreign import data ALEXA   :: Effect
-foreign import data Alexa   :: Type
-foreign import data Event   :: Type
-foreign import data Context :: Type
-foreign import data Handler :: Type
-
+-- | Given an `Event` and `Context` from AWS Lambda, return an initialized
+-- | Alexa handler.
 foreign import _init
-  :: ∀ eff. Fn2 Event Context (Eff (AlexaEffects eff) Alexa)
+  :: ∀ eff. EffFn2 (AlexaEffects eff) Event Context Alexa
 init :: ∀ eff. Event -> Context -> Eff (AlexaEffects eff) Alexa
-init = runFn2 _init
+init = runEffFn2 _init
 
+-- | Given an initialized Alexa handler, register an intent function.
 foreign import _registerHandler
-  :: ∀ eff. Fn3 Alexa String (Eff (AlexaEffects eff) Unit) (Eff (AlexaEffects eff) Unit)
+  :: ∀ eff.
+     EffFn3 (AlexaEffects eff)
+       Alexa
+       String
+       (HandlerThis -> Eff (AlexaEffects eff) Unit)
+       Unit
 registerHandler
-  :: ∀ eff. Alexa -> IntentLabel
+  :: ∀ eff
+   . Alexa
+  -> IntentLabel
+  -> (HandlerThis -> (Eff (AlexaEffects eff) Unit))
   -> (Eff (AlexaEffects eff) Unit)
-  -> (Eff (AlexaEffects eff) Unit)
-registerHandler alexa (IntentLabel label) =
-  runFn3 _registerHandler alexa label
+registerHandler alexa (IntentLabel label) fn =
+  runEffFn3 _registerHandler alexa label fn
 
-foreign import _execute
-  :: ∀ eff. Fn1 Alexa (Eff (AlexaEffects eff) Unit)
+-- | Execute the given Alexa handler.
+foreign import _execute :: ∀ eff. EffFn1 (AlexaEffects eff) Alexa Unit
 execute :: ∀ eff. Alexa -> (Eff (AlexaEffects eff) Unit)
-execute = runFn1 _execute
+execute = runEffFn1 _execute
 
-foreign import _speak
-  :: ∀ eff. Fn2 Alexa String (Eff (AlexaEffects eff) Unit)
-speak :: ∀ eff. Alexa -> Say -> (Eff (AlexaEffects eff) Unit)
-speak alexa (Say say) = runFn2 _speak alexa say
+-- | Register an intent that just speaks.
+foreign import _speak :: ∀ eff. EffFn2 (AlexaEffects eff) HandlerThis String Unit
+speak :: ∀ eff. HandlerThis -> Say -> (Eff (AlexaEffects eff) Unit)
+speak this (Say say) = runEffFn2 _speak this say
 
+-- | Register an intent that speaks and listens for a user response.
 foreign import _speakAndListen
-  :: ∀ eff. Fn3 Alexa String String (Eff (AlexaEffects eff) Unit)
+  :: ∀ eff.
+     EffFn3 (AlexaEffects eff)
+       HandlerThis
+       String
+       String
+       Unit
 speakAndListen
-  :: ∀ eff. Alexa -> Say -> Listen
+  :: ∀ eff
+   . HandlerThis
+  -> Say
+  -> Listen
   -> (Eff (AlexaEffects eff) Unit)
-speakAndListen alexa (Say say) (Listen listen) =
-  runFn3 _speakAndListen alexa say listen
+speakAndListen this (Say say) (Listen listen) =
+  runEffFn3 _speakAndListen this say listen
 
 registerHelpIntent :: ∀ eff. Alexa -> Eff (AlexaEffects eff) Unit
 registerHelpIntent alexa =
   let label  = IntentLabel "AMAZON.HelpIntent"
-      say    = Say "Please refer to the Skyfall readme for example invocations and try again."
+      say    = Say "Please refer to the readme for example invocations and try again."
       listen = Listen "Please refer to the readme and try again."
-      fn     = speakAndListen alexa say listen
-  in registerHandler alexa label fn
+      fn     = \this -> speakAndListen this say listen
+  in do
+    log "Registered help intent"
+    registerHandler alexa label fn
 
 registerCancelIntent :: ∀ eff. Alexa -> Eff (AlexaEffects eff) Unit
 registerCancelIntent alexa =
   let label  = IntentLabel "AMAZON.CancelIntent"
-      say    = Say "Please refer to the Skyfall readme for example invocations and try again."
-      fn     = speak alexa say
-  in registerHandler alexa label fn
+      say    = Say "Goodbye."
+      fn     = \this -> speak this say
+  in do
+    log "Registered cancel intent"
+    registerHandler alexa label fn
 
 registerStopIntent :: ∀ eff. Alexa -> Eff (AlexaEffects eff) Unit
 registerStopIntent alexa =
   let label  = IntentLabel "AMAZON.StopIntent"
-      say    = Say "Please refer to the Skyfall readme for example invocations and try again."
-      fn     = speak alexa say
-  in registerHandler alexa label fn
+      say    = Say "Goodbye."
+      fn     = \this -> speak this say
+  in do
+    log "Registered stop intent"
+    registerHandler alexa label fn
 
 registerSpeakIntent :: ∀ eff. Alexa -> Eff (AlexaEffects eff) Unit
 registerSpeakIntent alexa =
   let label  = IntentLabel "SpeakIntent"
       say    = Say "Hello"
-      fn     = speak alexa say
-  in registerHandler alexa label fn
+      fn     = \this -> speak this say
+  in do
+    log "Registered speak intent"
+    registerHandler alexa label fn
 
 handler :: ∀ eff. Event -> Context -> Eff (AlexaEffects eff) Unit
 handler event ctx = do
   alexa <- init event ctx
+
   registerHelpIntent alexa
   registerCancelIntent alexa
   registerStopIntent alexa
   registerSpeakIntent alexa
+
   execute alexa

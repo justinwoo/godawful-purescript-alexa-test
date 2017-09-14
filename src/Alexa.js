@@ -5,34 +5,26 @@
 var Alexa = require('alexa-sdk');
 
 exports._init = function(event, context) {
-  return function() {
-    return Alexa.handler(event, context);
-  }
-}
+  return Alexa.handler(event, context);
+};
 
 exports._registerHandler = function(alexa, label, fn) {
-  return function() {
-    var handler = {label: fn};
-    alexa.registerHandlers(handler);
-  }
-}
+  var handler = {};
+  handler[label] = function() {
+    this.emit(':tell', 'wtf!!!'); // this works
+    // fn(this) // this doesn't??
+  };
+  alexa.registerHandlers(handler);
+};
 
 exports._execute = function(alexa) {
-  return function() {
-    alexa.execute();
-  }
-}
+  alexa.execute();
+};
 
 exports._speak = function(self, say) {
-  return function() {
-    self.speak(say);
-    self.emit(':responseReady');
-  }
-}
+  self.emit(':tell', say);
+};
 
 exports._speakAndListen = function(self, say, listen) {
-  return function() {
-    self.speak(say).listen(listen);
-    self.emit(':responseReady');
-  }
-}
+  self.emit(':ask', say, listen);
+};
