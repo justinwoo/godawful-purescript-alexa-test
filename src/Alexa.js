@@ -29,3 +29,21 @@ exports._registerSayAndListen = function(alexa, label, say, listen) {
 exports._execute = function(alexa) {
   alexa.execute();
 };
+
+exports._registerHandler = function(alexa, label, fn) {
+  var handler = {};
+  handler[label] = function() {
+    fn(this);
+  };
+  alexa.registerHandlers(handler);
+};
+
+exports._speak = function(self, say) {
+  self.response.speak(say);
+  self.emit(':responseReady');
+};
+
+exports._speakAndListen = function(self, say, listen) {
+  self.response.speak(say).listen(listen);
+  self.emit(':responseReady');
+};

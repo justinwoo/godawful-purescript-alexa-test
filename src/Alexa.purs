@@ -3,6 +3,7 @@ module Alexa
   , Alexa
   , Event
   , Context
+  , This
   , handler
   ) where
 
@@ -11,7 +12,7 @@ import Prelude
 import Control.Monad.Eff (Eff, kind Effect)
 import Control.Monad.Eff.Console (CONSOLE, log)
 import Control.Monad.Eff.Uncurried (EffFn1, EffFn2, EffFn3, EffFn4, runEffFn1, runEffFn2, runEffFn3, runEffFn4)
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, unwrap)
 
 type AlexaEffects eff = (alexa :: ALEXA, console :: CONSOLE | eff)
 
@@ -21,6 +22,7 @@ foreign import data ALEXA   :: Effect
 foreign import data Alexa   :: Type
 foreign import data Event   :: Type
 foreign import data Context :: Type
+foreign import data This    :: Type
 
 -- | Newtype wrappers for common arguments
 
@@ -81,6 +83,10 @@ foreign import _execute :: ∀ eff. EffFn1 (AlexaEffects eff) Alexa Unit
 execute :: ∀ eff. Alexa -> (Eff (AlexaEffects eff) Unit)
 execute = runEffFn1 _execute
 
+--------------------------------------------------------------------------------
+-- This works
+--------------------------------------------------------------------------------
+
 registerHelpIntent :: ∀ eff. Alexa -> Eff (AlexaEffects eff) Unit
 registerHelpIntent alexa =
   let label  = IntentLabel "AMAZON.HelpIntent"
@@ -121,6 +127,46 @@ handler event ctx = do
   registerHelpIntent alexa
   registerCancelIntent alexa
   registerStopIntent alexa
-  registerSpeakIntent alexa
+  -- registerSpeakIntent alexa
+  failRegisterSpeakIntent alexa
 
   execute alexa
+
+--------------------------------------------------------------------------------
+-- This doesn't work
+--------------------------------------------------------------------------------
+
+-- | Register an intent handler.
+foreign import _registerHandler
+  :: ∀ eff.
+     EffFn3 (AlexaEffects eff)
+       Alexa
+       String
+       (This -> Eff (AlexaEffects eff) Unit)
+       Unit
+registerHandler
+  :: ∀ eff
+   . Alexa
+  -> IntentLabel
+  -> (This -> Eff (AlexaEffects eff) Unit)
+  -> (Eff (AlexaEffects eff) Unit)
+registerHandler alexa (IntentLabel label) fn =
+  runEffFn3 _registerHandler alexa label fn
+
+foreign import _speak
+  :: ∀ eff.
+    EffFn2 (AlexaEffects eff)
+      String
+      This
+      Unit
+speak :: ∀ eff. Say -> This -> Eff (AlexaEffects eff) Unit
+speak = runEffFn2 _speak <<< unwrap
+
+failRegisterSpeakIntent :: ∀ eff. Alexa -> Eff (AlexaEffects eff) Unit
+failRegisterSpeakIntent alexa =
+  let label = IntentLabel "SpeakIntent"
+      say   = Say "Hello"
+      fn    = speak say
+  in do
+    log "Registered speak intent"
+    registerHandler alexa label fn
