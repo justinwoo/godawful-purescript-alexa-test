@@ -156,17 +156,17 @@ registerHandler alexa (IntentLabel label) fn =
 foreign import _speak
   :: ∀ eff.
     EffFn2 (AlexaEffects eff)
-      String
       This
+      String
       Unit
-speak :: ∀ eff. Say -> This -> Eff (AlexaEffects eff) Unit
-speak = runEffFn2 _speak <<< unwrap
+speak :: ∀ eff. This -> Say -> Eff (AlexaEffects eff) Unit
+speak self (Say say) = runEffFn2 _speak self say
 
 failRegisterSpeakIntent :: ∀ eff. Alexa -> Eff (AlexaEffects eff) Unit
 failRegisterSpeakIntent alexa =
   let label = IntentLabel "SpeakIntent"
       say   = Say "Hello"
-      fn    = speak say
+      fn self = speak self say
   in do
     log "Registered speak intent"
     registerHandler alexa label fn

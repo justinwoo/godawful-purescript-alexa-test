@@ -33,7 +33,7 @@ exports._execute = function(alexa) {
 exports._registerHandler = function(alexa, label, fn) {
   var handler = {};
   handler[label] = function() {
-    fn(this);
+    fn(this)();
   };
   alexa.registerHandlers(handler);
 };
