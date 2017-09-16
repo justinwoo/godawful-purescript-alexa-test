@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "license": "MIT",
+  "scripts": {
+    "build": "pulp build",
+    "test": "node ./test/test.js"
+  },
   "dependencies": {
     "alexa-sdk": "^1.0.14"
   }
